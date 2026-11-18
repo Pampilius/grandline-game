@@ -1,0 +1,19 @@
+{
+  "name": "grandline-game",
+  "version": "0.0.1",
+  "private": true,
+  "description": "A pirate-life management/adventure game set in a One Piece-inspired world.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "node scripts/build.mjs",
+    "smoke": "python3 scripts/smoke.py play/GrandLine.html",
+    "check": "npm run typecheck && npm test && npm run build && npm run smoke"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

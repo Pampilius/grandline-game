@@ -1,0 +1,42 @@
+:root {
+  --bg: #0f1a24;
+  --panel: #172636;
+  --line: #2a4058;
+  --text: #e6edf3;
+  --muted: #8ea3b8;
+  --accent: #e0a64a;
+  --danger: #d9534f;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; }
+h1, h2 { margin: 0 0 .5rem; font-weight: 600; }
+h2 { font-size: 1rem; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; }
+button {
+  background: var(--panel); color: var(--text); border: 1px solid var(--line);
+  padding: .45rem .9rem; border-radius: 6px; cursor: pointer; font: inherit;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #1a1205; border-color: var(--accent); font-weight: 600; }
+button.danger { border-color: var(--danger); color: var(--danger); }
+input { background: #0b141c; color: var(--text); border: 1px solid var(--line); padding: .45rem; border-radius: 6px; font: inherit; }
+
+.title { max-width: 360px; margin: 15vh auto; display: flex; flex-direction: column; gap: .8rem; text-align: center; }
+.title h1 { font-size: 3rem; color: var(--accent); }
+.title .sub { color: var(--muted); margin: 0 0 1rem; }
+.title label { display: flex; flex-direction: column; gap: .3rem; text-align: left; color: var(--muted); }
+
+.bar { display: flex; gap: 1.2rem; align-items: center; padding: .6rem 1rem; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.bar .spacer { flex: 1; }
+.layout { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; padding: 1rem; }
+@media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; }
+.log ul { margin: 0; padding: 0; list-style: none; color: var(--muted); max-height: 60vh; overflow: auto; }
+.log li { margin-bottom: .3rem; }
+.debug { position: fixed; right: 1rem; bottom: 1rem; width: 260px; display: flex; flex-direction: column; gap: .5rem; border-color: var(--accent); }
+.error-box {
+  position: fixed; inset: 1rem; z-index: 99; margin: 0; padding: 1rem; overflow: auto; white-space: pre-wrap;
+  background: #2a0f0f; color: #ffd7d7; border: 2px solid var(--danger); border-radius: 8px; cursor: pointer;
+}

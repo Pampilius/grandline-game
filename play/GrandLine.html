@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grand Line v0.0.1</title>
+<style>:root {
+  --bg: #0f1a24;
+  --panel: #172636;
+  --line: #2a4058;
+  --text: #e6edf3;
+  --muted: #8ea3b8;
+  --accent: #e0a64a;
+  --danger: #d9534f;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; }
+h1, h2 { margin: 0 0 .5rem; font-weight: 600; }
+h2 { font-size: 1rem; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; }
+button {
+  background: var(--panel); color: var(--text); border: 1px solid var(--line);
+  padding: .45rem .9rem; border-radius: 6px; cursor: pointer; font: inherit;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #1a1205; border-color: var(--accent); font-weight: 600; }
+button.danger { border-color: var(--danger); color: var(--danger); }
+input { background: #0b141c; color: var(--text); border: 1px solid var(--line); padding: .45rem; border-radius: 6px; font: inherit; }
+
+.title { max-width: 360px; margin: 15vh auto; display: flex; flex-direction: column; gap: .8rem; text-align: center; }
+.title h1 { font-size: 3rem; color: var(--accent); }
+.title .sub { color: var(--muted); margin: 0 0 1rem; }
+.title label { display: flex; flex-direction: column; gap: .3rem; text-align: left; color: var(--muted); }
+
+.bar { display: flex; gap: 1.2rem; align-items: center; padding: .6rem 1rem; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.bar .spacer { flex: 1; }
+.layout { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; padding: 1rem; }
+@media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; }
+.log ul { margin: 0; padding: 0; list-style: none; color: var(--muted); max-height: 60vh; overflow: auto; }
+.log li { margin-bottom: .3rem; }
+.debug { position: fixed; right: 1rem; bottom: 1rem; width: 260px; display: flex; flex-direction: column; gap: .5rem; border-color: var(--accent); }
+.error-box {
+  position: fixed; inset: 1rem; z-index: 99; margin: 0; padding: 1rem; overflow: auto; white-space: pre-wrap;
+  background: #2a0f0f; color: #ffd7d7; border: 2px solid var(--danger); border-radius: 8px; cursor: pointer;
+}
+</style>
+</head>
+<body>
+<div id="app"><noscript>This game needs JavaScript enabled.</noscript></div>
+<script>"use strict";
+(() => {
+  // src/core/actions.ts
+  var MAX_LOG = 200;
+  function addLog(state2, line) {
+    state2.log.push(`Day ${state2.day}: ${line}`);
+    if (state2.log.length > MAX_LOG) state2.log.splice(0, state2.log.length - MAX_LOG);
+  }
+  function endDay(state2, rng2) {
+    state2.day += 1;
+    const found = rng2.int(0, 20);
+    state2.player.berries += found;
+    addLog(state2, found > 0 ? `You scrounged ${found} berries around the village.` : "A quiet day.");
+  }
+
+  // src/core/rng.ts
+  function createRng(seed) {
+    let s = seed >>> 0;
+    const next = () => {
+      s = s + 1831565813 >>> 0;
+      let t = s;
+      t = Math.imul(t ^ t >>> 15, t | 1);
+      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+    return {
+      next,
+      int(min, max) {
+        if (max < min) throw new Error(`rng.int: max (${max}) < min (${min})`);
+        return min + Math.floor(next() * (max - min + 1));
+      },
+      chance(p) {
+        return next() < p;
+      },
+      pick(items) {
+        if (items.length === 0) throw new Error("rng.pick: empty array");
+        return items[Math.floor(next() * items.length)];
+      },
+      getState() {
+        return s;
+      }
+    };
+  }
+
+  // src/core/state.ts
+  var SAVE_VERSION = 1;
+  function newGame(playerName, seed) {
+    return {
+      saveVersion: SAVE_VERSION,
+      seed,
+      rngState: seed >>> 0,
+      day: 1,
+      player: { name: playerName.trim() || "Nameless", berries: 100, bounty: 0 },
+      log: [`Day 1: ${playerName.trim() || "Nameless"} dreams of the sea.`]
+    };
+  }
+  function validateState(state2) {
+    const problems = [];
+    const isBadNumber = (n) => !Number.isFinite(n);
+    if (!Number.isInteger(state2.day) || state2.day < 1) problems.push(`day is invalid: ${state2.day}`);
+    if (isBadNumber(state2.player.berries) || state2.player.berries < 0)
+      problems.push(`berries invalid: ${state2.player.berries}`);
+    if (isBadNumber(state2.player.bounty) || state2.player.bounty < 0)
+      problems.push(`bounty invalid: ${state2.player.bounty}`);
+    if (!state2.player.name) problems.push("player has no name");
+    return problems;
+  }
+
+  // src/core/save.ts
+  var STORAGE_KEY = "grandline.save.v1";
+  function serialize(state2) {
+    return JSON.stringify(state2);
+  }
+  function deserialize(text) {
+    let raw;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      throw new Error("Save file is not valid JSON.");
+    }
+    if (typeof raw !== "object" || raw === null || !("saveVersion" in raw)) {
+      throw new Error("This doesn't look like a Grand Line save.");
+    }
+    const state2 = migrate(raw);
+    const problems = validateState(state2);
+    if (problems.length > 0) throw new Error("Save is damaged: " + problems.join("; "));
+    return state2;
+  }
+  function migrate(raw) {
+    if (raw.saveVersion > SAVE_VERSION) {
+      throw new Error(`Save is from a newer version (v${raw.saveVersion}) of the game.`);
+    }
+    return raw;
+  }
+  function saveToBrowser(state2) {
+    try {
+      localStorage.setItem(STORAGE_KEY, serialize(state2));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  function loadFromBrowser() {
+    try {
+      const text = localStorage.getItem(STORAGE_KEY);
+      return text ? deserialize(text) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // src/ui/render.ts
+  var state = null;
+  var rng = null;
+  var debugOpen = false;
+  var esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+  function root() {
+    const el = document.getElementById("app");
+    if (!el) throw new Error("#app element missing");
+    return el;
+  }
+  function startGame(s) {
+    state = s;
+    rng = createRng(s.rngState);
+    draw();
+  }
+  function persist() {
+    if (state && rng) {
+      state.rngState = rng.getState();
+      saveToBrowser(state);
+    }
+  }
+  function boot() {
+    const existing = loadFromBrowser();
+    if (existing) startGame(existing);
+    else drawTitle();
+  }
+  function drawTitle() {
+    root().innerHTML = `
+    <main class="title">
+      <h1>Grand Line</h1>
+      <p class="sub">A life at sea \u2014 v${esc("0.0.1")}</p>
+      <label>Your name <input id="name" maxlength="24" placeholder="Nameless"></label>
+      <button id="start" class="primary">Set out</button>
+      <button id="import">Import save</button>
+    </main>`;
+    byId("start").onclick = () => {
+      const name = byId("name").value;
+      startGame(newGame(name, Math.random() * 2 ** 32 >>> 0));
+      persist();
+    };
+    byId("import").onclick = importSave;
+  }
+  function draw() {
+    if (!state) return drawTitle();
+    const s = state;
+    const problems = validateState(s);
+    root().innerHTML = `
+    <header class="bar">
+      <span><b>${esc(s.player.name)}</b></span>
+      <span>Day ${s.day}</span>
+      <span>\u0E3F ${s.player.berries.toLocaleString()}</span>
+      <span>Bounty \u0E3F ${s.player.bounty.toLocaleString()}</span>
+      <span class="spacer"></span>
+      <button id="export">Export save</button>
+      <button id="debug">Debug</button>
+    </header>
+    <main class="layout">
+      <section class="panel">
+        <h2>Home village</h2>
+        <p>The real game starts here soon. For now: a day counter, so we know the engine, saving and testing all work.</p>
+        <button id="end-day" class="primary">End day</button>
+      </section>
+      <section class="panel log">
+        <h2>Log</h2>
+        <ul>${s.log.slice(-30).reverse().map((l) => `<li>${esc(l)}</li>`).join("")}</ul>
+      </section>
+    </main>
+    ${debugOpen ? debugPanel(problems) : ""}`;
+    byId("end-day").onclick = () => {
+      if (state && rng) endDay(state, rng);
+      persist();
+      draw();
+    };
+    byId("export").onclick = exportSave;
+    byId("debug").onclick = () => {
+      debugOpen = !debugOpen;
+      draw();
+    };
+    if (debugOpen) wireDebug();
+  }
+  function debugPanel(problems) {
+    return `
+    <aside class="panel debug">
+      <h2>Debug</h2>
+      <p>State check: ${problems.length === 0 ? "\u2705 healthy" : "\u274C " + esc(problems.join("; "))}</p>
+      <button id="dbg-money">+10,000 berries</button>
+      <button id="dbg-skip">Skip 10 days</button>
+      <button id="dbg-reset" class="danger">Delete save &amp; restart</button>
+    </aside>`;
+  }
+  function wireDebug() {
+    byId("dbg-money").onclick = () => {
+      if (state) state.player.berries += 1e4;
+      persist();
+      draw();
+    };
+    byId("dbg-skip").onclick = () => {
+      if (state && rng) for (let i = 0; i < 10; i++) endDay(state, rng);
+      persist();
+      draw();
+    };
+    byId("dbg-reset").onclick = () => {
+      if (!window.confirm("Delete your save and restart?")) return;
+      try {
+        localStorage.clear();
+      } catch {
+      }
+      state = null;
+      rng = null;
+      debugOpen = false;
+      drawTitle();
+    };
+  }
+  function exportSave() {
+    if (!state) return;
+    persist();
+    const blob = new Blob([serialize(state)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `grandline-day${state.day}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+  function importSave() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,application/json";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        startGame(deserialize(await file.text()));
+        persist();
+      } catch (e) {
+        showError(e);
+      }
+    };
+    input.click();
+  }
+  function byId(id) {
+    const el = document.getElementById(id);
+    if (!el) throw new Error(`UI element #${id} missing`);
+    return el;
+  }
+  function showError(e) {
+    const msg = e instanceof Error ? `${e.message}
+
+${e.stack ?? ""}` : String(e);
+    console.error(e);
+    const box = document.createElement("pre");
+    box.className = "error-box";
+    box.textContent = "Something went wrong \u2014 screenshot this for Claude:\n\n" + msg;
+    box.onclick = () => box.remove();
+    document.body.appendChild(box);
+  }
+
+  // src/main.ts
+  window.addEventListener("error", (e) => showError(e.error ?? e.message));
+  window.addEventListener("unhandledrejection", (e) => showError(e.reason));
+  try {
+    boot();
+  } catch (e) {
+    showError(e);
+  }
+})();
+</script>
+</body>
+</html>
